@@ -1,0 +1,47 @@
+{
+  "name": "valtio-inspector",
+  "version": "1.0.0",
+  "description": "The client library for Valtio Inspector. Connects your frontend Valtio state to the browser DevTools extension.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mark-Bazylev/valtio-inspector.git"
+  },
+  "keywords": [
+    "valtio",
+    "devtools",
+    "inspector",
+    "state",
+    "react"
+  ],
+  "author": "Mark Bazylev",
+  "license": "ISC",
+  "peerDependencies": {
+    "valtio": ">=1.0.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3",
+    "valtio": "^2.3.1"
+  }
+}
