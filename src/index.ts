@@ -2,15 +2,38 @@ import { subscribe, snapshot } from "valtio";
 
 export interface InspectorOptions {
   name?: string;
+  readonly?: boolean;
 }
 
-// Safely strips out functions, symbols, and non-cloneable data
+// Helper to detect if a store is from derive-valtio (all getters, no setters)
+function autoDetectDerived(store: any): boolean {
+  try {
+    const descriptors = Object.getOwnPropertyDescriptors(store);
+    const keys = Object.keys(descriptors);
+    if (keys.length === 0) return false;
+
+    return keys.every(
+      (key) =>
+        typeof descriptors[key]?.get === "function" &&
+        descriptors[key]?.set === undefined,
+    );
+  } catch (e) {
+    return false;
+  }
+}
+
+// Safely strips out symbols and converts functions to structured metadata
 function sanitizePayload(payload: any) {
   try {
     return JSON.parse(
       JSON.stringify(payload, (_key, value) => {
         if (typeof value === "function") {
-          return `[Function: ${value.name || "anonymous"}]`;
+          return {
+            __valtio_type: "function",
+            name: value.name || "anonymous",
+            isAsync: value.constructor.name === "AsyncFunction",
+            args: value.length,
+          };
         }
         if (typeof value === "symbol") {
           return value.toString();
@@ -19,7 +42,6 @@ function sanitizePayload(payload: any) {
       }),
     );
   } catch (error) {
-    // Fallback if there is a massive circular reference issue
     return {
       source: "valtio-inspector-app",
       type: "ERROR",
@@ -32,18 +54,30 @@ function sanitizePayload(payload: any) {
 export function inspectValtio(store: object, options: InspectorOptions = {}) {
   const storeName = options.name || "valtio-store";
 
-  // 1. Broadcast the initial state (entire object sanitized)
-  window.postMessage(
-    sanitizePayload({
-      source: "valtio-inspector-app",
-      type: "INIT",
-      store: storeName,
-      data: snapshot(store),
-    }),
-    "*",
-  );
+  // 1. Auto-detect if it's derived/readonly!
+  const isReadOnly =
+    options.readonly !== undefined
+      ? options.readonly
+      : autoDetectDerived(store);
 
-  // 2. Broadcast updates (entire object sanitized, including ops!)
+  // Helper to broadcast the current state (used on init and handshakes)
+  const broadcastInit = () => {
+    window.postMessage(
+      sanitizePayload({
+        source: "valtio-inspector-app",
+        type: "INIT",
+        store: storeName,
+        readonly: isReadOnly,
+        data: snapshot(store),
+      }),
+      "*",
+    );
+  };
+
+  // 2. Broadcast the initial state
+  broadcastInit();
+
+  // 3. Broadcast updates
   const unsubscribeStore = subscribe(
     store,
     (ops) => {
@@ -61,17 +95,28 @@ export function inspectValtio(store: object, options: InspectorOptions = {}) {
     true,
   );
 
-  // 3. Listen for Time Travel
+  // 4. Listen for Extension Commands (Time Travel & Handshakes)
   const messageListener = (event: MessageEvent) => {
     if (
       event.source !== window ||
-      event.data?.source !== "valtio-inspector-ext" ||
-      event.data?.store !== storeName
+      event.data?.source !== "valtio-inspector-ext"
     ) {
       return;
     }
 
-    if (event.data.type === "RESTORE") {
+    // Handshake: If the extension just opened, it will ask for the current state
+    if (event.data.type === "REQUEST_INIT") {
+      broadcastInit();
+      return;
+    }
+
+    // Ensure the message is meant for this specific store
+    if (event.data.store !== storeName) {
+      return;
+    }
+
+    // Time Travel: Only allow restore if the store is NOT read-only
+    if (event.data.type === "RESTORE" && !isReadOnly) {
       Object.assign(store, event.data.state);
     }
   };
