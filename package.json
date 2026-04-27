@@ -1,6 +1,6 @@
 {
   "name": "valtio-inspector",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "The client library for Valtio Inspector. Connects your frontend Valtio state to the browser DevTools extension.",
   "type": "module",
   "main": "./dist/index.cjs",
